@@ -8,11 +8,8 @@ import time
 from datetime import datetime
 
 async def get_access_token() -> str:
-    with open("firebase-key.json", "r") as f:
-        key_data = json.load(f)
-    
-    client_email = key_data["client_email"]
-    private_key = key_data["private_key"]
+    client_email = os.getenv("FIREBASE_CLIENT_EMAIL")
+    private_key = os.getenv("FIREBASE_PRIVATE_KEY", "").replace('\\n', '\n')
     
     now = int(time.time())
     

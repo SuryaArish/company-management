@@ -1,23 +1,32 @@
-# Rust build
-/target/
-**/*.rs.bk
+# Firebase credentials
+firebase-key.json
+*.json
 
-# Dependencies
-Cargo.lock
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
 
-# Environment files
+# Environment variables
 .env
+.env.local
+.env.development
+.env.test
 
-# VSCode settings
+# IDE
 .vscode/
-*.code-workspace
+.idea/
+*.swp
+*.swo
 
-# OS files
+# OS
 .DS_Store
 Thumbs.db
 
-# MCP config (if you don’t want to commit local config)
-mcp-config.json
-
-# SQLx metadata (optional, ignore if generated)
-sqlx-data.json
+# Logs
+*.log
