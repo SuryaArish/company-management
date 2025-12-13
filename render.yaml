@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: company-todo-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: FIREBASE_PROJECT_ID
+        value: company-management-d0c88
+      - key: FIREBASE_DATABASE_URL
+        value: https://company-management-d0c88-default-rtdb.firebaseio.com
+      - key: FIREBASE_STORAGE_BUCKET
+        value: company-management-d0c88.appspot.com
+      - key: FIREBASE_AUTH_DOMAIN
+        value: company-management-d0c88.firebaseapp.com
+      - key: PORT
+        value: 8080
+      - key: DEFAULT_USER_ID
+        value: S982Zx4o90FuchAp2idT
