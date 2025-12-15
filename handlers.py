@@ -8,8 +8,9 @@ async def get_companies():
     try:
         companies = await firebase.get_companies()
         return companies
-    except Exception:
-        raise HTTPException(status_code=500, detail="Internal server error")
+    except Exception as e:
+        print(f"Error in get_companies: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 async def create_company(company_data: Company):
     company_id = str(uuid.uuid4())

@@ -11,6 +11,12 @@ async def get_access_token() -> str:
     client_email = os.getenv("FIREBASE_CLIENT_EMAIL")
     private_key = os.getenv("FIREBASE_PRIVATE_KEY", "").replace('\\n', '\n')
     
+    print(f"Client email: {client_email}")
+    print(f"Private key length: {len(private_key)}")
+    
+    if not client_email or not private_key:
+        raise Exception("Missing Firebase credentials in environment variables")
+    
     now = int(time.time())
     
     payload = {
@@ -40,7 +46,14 @@ async def get_companies() -> List[Company]:
     user_id = "S982Zx4o90FuchAp2idT"  # Replace with actual user ID
     url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies"
     
-    token = await get_access_token()
+    print(f"Getting companies from: {url}")
+    
+    try:
+        token = await get_access_token()
+        print(f"Got access token: {token[:20]}...")
+    except Exception as e:
+        print(f"Error getting access token: {e}")
+        raise
     
     async with httpx.AsyncClient() as client:
         response = await client.get(
@@ -48,7 +61,15 @@ async def get_companies() -> List[Company]:
             headers={"Authorization": f"Bearer {token}"}
         )
         
+        print(f"Response status: {response.status_code}")
+        print(f"Response text: {response.text[:500]}")
+        
         if response.status_code in [403, 401]:
+            print("Authentication failed - returning empty list")
+            return []
+        
+        if response.status_code != 200:
+            print(f"Unexpected status code: {response.status_code}")
             return []
         
         data = response.json()
