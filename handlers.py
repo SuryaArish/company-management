@@ -157,10 +157,18 @@ async def get_templates():
         raise HTTPException(status_code=500, detail="Internal server error")
 
 async def create_template(template_data: TaskTemplate):
+    # Get all companies at once to check existence
+    all_companies = await firebase.get_companies()
+    existing_company_ids = {company.id for company in all_companies}
+    
     created_tasks = []
+    not_available_companies = []
     
     # Create a task for each company
     for company_id in template_data.companyIds:
+        if company_id not in existing_company_ids:
+            not_available_companies.append(company_id)
+            continue
         task_id = str(uuid.uuid4())
         
         # Create task object
@@ -196,12 +204,17 @@ async def create_template(template_data: TaskTemplate):
                 "status": "error"
             })
     
-    return {
+    response = {
         "message": "Tasks created and assigned to companies",
         "created_tasks": created_tasks,
         "total_companies": len(template_data.companyIds),
         "successful_assignments": len([t for t in created_tasks if t["status"] == "created"])
     }
+    
+    if not_available_companies:
+        response["not_available_companies"] = not_available_companies
+    
+    return response
 
 async def delete_template(template_id: str):
     return {"message": "Template deleted successfully", "id": template_id}
