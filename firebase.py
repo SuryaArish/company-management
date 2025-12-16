@@ -59,7 +59,7 @@ async def get_access_token() -> str:
 async def get_companies() -> List[Company]:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
     user_id = "S982Zx4o90FuchAp2idT"
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies"
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies"
     
     token = await get_access_token()
     client = await get_http_client()
@@ -90,7 +90,7 @@ async def get_tasks() -> List[Task]:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
     user_id = "S982Zx4o90FuchAp2idT"
     
-    companies_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies"
+    companies_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies"
     
     token = await get_access_token()
     client = await get_http_client()
@@ -111,7 +111,7 @@ async def get_tasks() -> List[Task]:
     # Create concurrent requests for all company tasks
     async def get_company_tasks(company_doc):
         company_id = company_doc["name"].split("/")[-1]
-        tasks_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{company_id}/Task"
+        tasks_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}/Task"
         
         tasks_response = await client.get(
             tasks_url,
@@ -216,7 +216,7 @@ async def create_company(company: Company) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
     user_id = "S982Zx4o90FuchAp2idT"
     doc_id = company.id
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{doc_id}"
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{doc_id}"
     
     token = await get_access_token()
     
@@ -251,7 +251,7 @@ async def create_company(company: Company) -> bool:
 async def get_company_by_id(company_id: str) -> Optional[Company]:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
     user_id = "S982Zx4o90FuchAp2idT"
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{company_id}"
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}"
     
     token = await get_access_token()
     client = await get_http_client()
@@ -270,7 +270,7 @@ async def get_company_by_id(company_id: str) -> Optional[Company]:
 async def update_company(company_id: str, company: Company) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
     user_id = "S982Zx4o90FuchAp2idT"
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{company_id}"
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}"
     
     token = await get_access_token()
     
@@ -305,7 +305,7 @@ async def update_company(company_id: str, company: Company) -> bool:
 async def delete_company(company_id: str) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
     user_id = "S982Zx4o90FuchAp2idT"
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{company_id}"
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}"
     
     token = await get_access_token()
     client = await get_http_client()
@@ -322,7 +322,7 @@ async def create_task(task: Task) -> bool:
     user_id = "S982Zx4o90FuchAp2idT"
     doc_id = task.id
     company_id = task.companyId
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{company_id}/Task/{doc_id}"
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}/Task/{doc_id}"
     
     token = await get_access_token()
     
@@ -352,7 +352,7 @@ async def get_task_by_id(task_id: str) -> Optional[Task]:
     user_id = "S982Zx4o90FuchAp2idT"
     
     # Need to search through all companies to find the task
-    companies_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies"
+    companies_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies"
     
     token = await get_access_token()
     client = await get_http_client()
@@ -371,7 +371,7 @@ async def get_task_by_id(task_id: str) -> Optional[Task]:
         for company_doc in companies_data["documents"]:
             company_id = company_doc["name"].split("/")[-1]
             
-            task_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{company_id}/Task/{task_id}"
+            task_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}/Task/{task_id}"
             
             task_response = await client.get(
                 task_url,
@@ -388,7 +388,7 @@ async def update_task(task_id: str, task: Task) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
     user_id = "S982Zx4o90FuchAp2idT"
     company_id = task.companyId
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{company_id}/Task/{task_id}"
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}/Task/{task_id}"
     
     token = await get_access_token()
     
@@ -416,7 +416,7 @@ async def update_task(task_id: str, task: Task) -> bool:
 async def delete_task(task_id: str, company_id: str) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
     user_id = "S982Zx4o90FuchAp2idT"
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{company_id}/Task/{task_id}"
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}/Task/{task_id}"
     
     token = await get_access_token()
     client = await get_http_client()
