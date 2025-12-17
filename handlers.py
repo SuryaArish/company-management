@@ -4,22 +4,22 @@ import firebase
 from datetime import datetime
 import uuid
 
-async def get_companies():
+async def get_companies(user_id: str):
     try:
-        companies = await firebase.get_companies()
+        companies = await firebase.get_companies(user_id)
         return companies
     except Exception as e:
         print(f"Error in get_companies: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-async def create_company(company_data: Company):
+async def create_company(user_id: str, company_data: Company):
     company_id = str(uuid.uuid4())
     company_data.id = company_id
     company_data.created_at = datetime.utcnow()
     company_data.updated_at = datetime.utcnow()
     
     try:
-        success = await firebase.create_company(company_data)
+        success = await firebase.create_company(user_id, company_data)
         if success:
             return {"message": "Data created successfully", "id": company_id}
         else:
@@ -27,10 +27,10 @@ async def create_company(company_data: Company):
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
-async def update_company(company_id: str, company_data: Company):
+async def update_company(user_id: str, company_id: str, company_data: Company):
     # Check if company exists first
     try:
-        existing_company = await firebase.get_company_by_id(company_id)
+        existing_company = await firebase.get_company_by_id(user_id, company_id)
         if not existing_company:
             return {"message": "That data not exist"}
         
@@ -38,7 +38,7 @@ async def update_company(company_id: str, company_data: Company):
         company_data.id = company_id
         company_data.updated_at = datetime.utcnow()
         
-        success = await firebase.update_company(company_id, company_data)
+        success = await firebase.update_company(user_id, company_id, company_data)
         if success:
             return {"message": "Data updated successfully", "id": company_id}
         else:
@@ -46,15 +46,15 @@ async def update_company(company_id: str, company_data: Company):
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
-async def delete_company(company_id: str):
+async def delete_company(user_id: str, company_id: str):
     # Check if company exists first
     try:
-        existing_company = await firebase.get_company_by_id(company_id)
+        existing_company = await firebase.get_company_by_id(user_id, company_id)
         if not existing_company:
             return {"message": "That data not exist"}
         
         # Company exists, proceed with delete
-        success = await firebase.delete_company(company_id)
+        success = await firebase.delete_company(user_id, company_id)
         if success:
             return {"message": "Company deleted successfully", "id": company_id}
         else:
@@ -62,9 +62,9 @@ async def delete_company(company_id: str):
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
-async def get_company_by_id(company_id: str):
+async def get_company_by_id(user_id: str, company_id: str):
     try:
-        company = await firebase.get_company_by_id(company_id)
+        company = await firebase.get_company_by_id(user_id, company_id)
         if company:
             return company
         else:
@@ -72,21 +72,21 @@ async def get_company_by_id(company_id: str):
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
-async def get_tasks():
+async def get_tasks(user_id: str):
     try:
-        tasks = await firebase.get_tasks()
+        tasks = await firebase.get_tasks(user_id)
         return tasks
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
-async def create_task(task_data: Task):
+async def create_task(user_id: str, task_data: Task):
     task_id = str(uuid.uuid4())
     task_data.id = task_id
     task_data.created_at = datetime.utcnow()
     task_data.updated_at = datetime.utcnow()
     
     try:
-        success = await firebase.create_task(task_data)
+        success = await firebase.create_task(user_id, task_data)
         if success:
             return {"message": "Data created successfully", "id": task_id}
         else:
@@ -94,10 +94,15 @@ async def create_task(task_data: Task):
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
-async def update_task(task_id: str, task_data: Task):
+async def update_task(user_id: str, task_id: str, task_data: Task):
+    # Check if company exists for this user
+    company_exists = await check_company_exists(user_id, task_data.companyId)
+    if not company_exists:
+        return {"message": "Company not exist"}
+    
     # Check if task exists first
     try:
-        existing_task = await firebase.get_task_by_id(task_id)
+        existing_task = await firebase.get_task_by_id(user_id, task_id)
         if not existing_task:
             return {"message": "That data not exist"}
         
@@ -105,7 +110,7 @@ async def update_task(task_id: str, task_data: Task):
         task_data.id = task_id
         task_data.updated_at = datetime.utcnow()
         
-        success = await firebase.update_task(task_id, task_data)
+        success = await firebase.update_task(user_id, task_id, task_data)
         if success:
             return {"message": "Data updated successfully", "id": task_id}
         else:
@@ -113,12 +118,12 @@ async def update_task(task_id: str, task_data: Task):
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
-async def delete_task(task_id: str):
+async def delete_task(user_id: str, task_id: str):
     print(f"DELETE /delete_task/{task_id} called")
     
     # Check if task exists first
     try:
-        existing_task = await firebase.get_task_by_id(task_id)
+        existing_task = await firebase.get_task_by_id(user_id, task_id)
         if existing_task:
             print(f"✅ Task found: {existing_task.title}")
             company_id = existing_task.companyId
@@ -128,7 +133,7 @@ async def delete_task(task_id: str):
         
         # Task exists, proceed with delete
         print(f"🗑️ Proceeding to delete task: {task_id}")
-        success = await firebase.delete_task(task_id, company_id)
+        success = await firebase.delete_task(user_id, task_id, company_id)
         if success:
             print("✅ Task deleted successfully from Firebase")
             return {"message": "Task deleted successfully", "id": task_id}
@@ -139,9 +144,9 @@ async def delete_task(task_id: str):
         print(f"🔥 Error in delete_task: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-async def get_task_by_id(task_id: str):
+async def get_task_by_id(user_id: str, task_id: str):
     try:
-        task = await firebase.get_task_by_id(task_id)
+        task = await firebase.get_task_by_id(user_id, task_id)
         if task:
             return task
         else:
@@ -149,16 +154,16 @@ async def get_task_by_id(task_id: str):
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
-async def get_templates():
+async def get_templates(user_id: str):
     try:
-        templates = await firebase.get_templates()
+        templates = await firebase.get_templates(user_id)
         return templates
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
-async def create_template(template_data: TaskTemplate):
+async def create_template(user_id: str, template_data: TaskTemplate):
     # Get all companies at once to check existence
-    all_companies = await firebase.get_companies()
+    all_companies = await firebase.get_companies(user_id)
     existing_company_ids = {company.id for company in all_companies}
     
     created_tasks = []
@@ -184,7 +189,7 @@ async def create_template(template_data: TaskTemplate):
         
         # Save task to Firebase
         try:
-            success = await firebase.create_task(task)
+            success = await firebase.create_task(user_id, task)
             if success:
                 created_tasks.append({
                     "task_id": task_id,
@@ -216,10 +221,17 @@ async def create_template(template_data: TaskTemplate):
     
     return response
 
-async def delete_template(template_id: str):
+async def check_company_exists(user_id: str, company_id: str):
+    try:
+        company = await firebase.get_company_by_id(user_id, company_id)
+        return company is not None
+    except Exception:
+        return False
+
+async def delete_template(user_id: str, template_id: str):
     return {"message": "Template deleted successfully", "id": template_id}
 
-async def assign_template(template_id: str, assign_data: AssignData):
+async def assign_template(user_id: str, template_id: str, assign_data: AssignData):
     return {
         "message": "Template assigned successfully",
         "templateId": template_id,

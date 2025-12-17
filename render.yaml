@@ -15,5 +15,3 @@ services:
         value: company-management-d0c88.firebaseapp.com
       - key: PORT
         value: 8080
-      - key: DEFAULT_USER_ID
-        value: S982Zx4o90FuchAp2idT

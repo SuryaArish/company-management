@@ -56,9 +56,8 @@ async def get_access_token() -> str:
     _token_expiry = now + 3600
     return _cached_token
 
-async def get_companies() -> List[Company]:
+async def get_companies(user_id: str) -> List[Company]:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
-    user_id = "S982Zx4o90FuchAp2idT"
     url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies"
     
     token = await get_access_token()
@@ -86,9 +85,10 @@ async def get_companies() -> List[Company]:
     
     return companies
 
-async def get_tasks() -> List[Task]:
+
+
+async def get_tasks(user_id: str) -> List[Task]:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
-    user_id = "S982Zx4o90FuchAp2idT"
     
     companies_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies"
     
@@ -135,7 +135,7 @@ async def get_tasks() -> List[Task]:
     
     return all_tasks
 
-async def get_templates() -> List[TaskTemplate]:
+async def get_templates(user_id: str) -> List[TaskTemplate]:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
     url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/task_templates"
     
@@ -212,9 +212,8 @@ def get_optional_string_value(fields: dict, field_name: str) -> Optional[str]:
 def get_bool_value(fields: dict, field_name: str) -> bool:
     return fields.get(field_name, {}).get("booleanValue", False)
 
-async def create_company(company: Company) -> bool:
+async def create_company(user_id: str, company: Company) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
-    user_id = "S982Zx4o90FuchAp2idT"
     doc_id = company.id
     url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{doc_id}"
     
@@ -248,9 +247,8 @@ async def create_company(company: Company) -> bool:
     
     return response.status_code < 400
 
-async def get_company_by_id(company_id: str) -> Optional[Company]:
+async def get_company_by_id(user_id: str, company_id: str) -> Optional[Company]:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
-    user_id = "S982Zx4o90FuchAp2idT"
     url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}"
     
     token = await get_access_token()
@@ -267,9 +265,8 @@ async def get_company_by_id(company_id: str) -> Optional[Company]:
     doc = response.json()
     return parse_firestore_company(doc)
 
-async def update_company(company_id: str, company: Company) -> bool:
+async def update_company(user_id: str, company_id: str, company: Company) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
-    user_id = "S982Zx4o90FuchAp2idT"
     url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}"
     
     token = await get_access_token()
@@ -302,9 +299,8 @@ async def update_company(company_id: str, company: Company) -> bool:
     
     return response.status_code < 400
 
-async def delete_company(company_id: str) -> bool:
+async def delete_company(user_id: str, company_id: str) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
-    user_id = "S982Zx4o90FuchAp2idT"
     url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}"
     
     token = await get_access_token()
@@ -317,9 +313,8 @@ async def delete_company(company_id: str) -> bool:
     
     return response.status_code < 400
 
-async def create_task(task: Task) -> bool:
+async def create_task(user_id: str, task: Task) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
-    user_id = "S982Zx4o90FuchAp2idT"
     doc_id = task.id
     company_id = task.companyId
     url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}/Task/{doc_id}"
@@ -347,9 +342,8 @@ async def create_task(task: Task) -> bool:
     
     return response.status_code < 400
 
-async def get_task_by_id(task_id: str) -> Optional[Task]:
+async def get_task_by_id(user_id: str, task_id: str) -> Optional[Task]:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
-    user_id = "S982Zx4o90FuchAp2idT"
     
     # Need to search through all companies to find the task
     companies_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies"
@@ -384,9 +378,8 @@ async def get_task_by_id(task_id: str) -> Optional[Task]:
     
     return None
 
-async def update_task(task_id: str, task: Task) -> bool:
+async def update_task(user_id: str, task_id: str, task: Task) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
-    user_id = "S982Zx4o90FuchAp2idT"
     company_id = task.companyId
     url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}/Task/{task_id}"
     
@@ -413,9 +406,8 @@ async def update_task(task_id: str, task: Task) -> bool:
     
     return response.status_code < 400
 
-async def delete_task(task_id: str, company_id: str) -> bool:
+async def delete_task(user_id: str, task_id: str, company_id: str) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
-    user_id = "S982Zx4o90FuchAp2idT"
     url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}/Task/{task_id}"
     
     token = await get_access_token()
