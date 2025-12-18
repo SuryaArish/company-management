@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from models import Company, Task, TaskTemplate, AssignData
+from models import Company, Task, TaskTemplate, AssignData, User
 import handlers
 import firebase_admin
 from firebase_admin import auth, credentials
@@ -127,6 +127,15 @@ async def delete_template(template_id: str, user_id: str = Depends(get_user_id_f
 @app.post("/assign_template/{template_id}")
 async def assign_template(template_id: str, assign_data: AssignData, user_id: str = Depends(get_user_id_from_token)):
     return await handlers.assign_template(user_id, template_id, assign_data)
+
+# User Authentication Routes
+@app.post("/create_user")
+async def create_user(user_data: User):
+    return await handlers.create_user_handler(user_data)
+
+@app.post("/login_user")
+async def login_user(user_data: User):
+    return await handlers.login_user_handler(user_data)
 
 if __name__ == "__main__":
     import uvicorn

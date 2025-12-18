@@ -12,18 +12,23 @@ import asyncio
 _cached_token = None
 _token_expiry = 0
 _http_client = None
+_companies_cache = {}
+_cache_expiry = {}
 
 async def get_http_client():
     global _http_client
     if _http_client is None:
-        _http_client = httpx.AsyncClient(timeout=30.0)
+        _http_client = httpx.AsyncClient(
+            timeout=10.0,
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=100)
+        )
     return _http_client
 
 async def get_access_token() -> str:
     global _cached_token, _token_expiry
     
     now = int(time.time())
-    if _cached_token and now < _token_expiry - 300:  # Refresh 5 minutes before expiry
+    if _cached_token and now < _token_expiry - 600:  # Refresh 10 minutes before expiry
         return _cached_token
     
     client_email = os.getenv("FIREBASE_CLIENT_EMAIL")
@@ -57,8 +62,16 @@ async def get_access_token() -> str:
     return _cached_token
 
 async def get_companies(user_id: str) -> List[Company]:
+    global _companies_cache, _cache_expiry
+    
+    # Check cache first
+    now = int(time.time())
+    cache_key = f"companies_{user_id}"
+    if cache_key in _companies_cache and now < _cache_expiry.get(cache_key, 0):
+        return _companies_cache[cache_key]
+    
     project_id = os.getenv("FIREBASE_PROJECT_ID")
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies"
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies"
     
     token = await get_access_token()
     client = await get_http_client()
@@ -83,6 +96,10 @@ async def get_companies(user_id: str) -> List[Company]:
             if company:
                 companies.append(company)
     
+    # Cache for 30 seconds
+    _companies_cache[cache_key] = companies
+    _cache_expiry[cache_key] = now + 30
+    
     return companies
 
 
@@ -90,7 +107,7 @@ async def get_companies(user_id: str) -> List[Company]:
 async def get_tasks(user_id: str) -> List[Task]:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
     
-    companies_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies"
+    companies_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies"
     
     token = await get_access_token()
     client = await get_http_client()
@@ -108,23 +125,29 @@ async def get_tasks(user_id: str) -> List[Task]:
     if "documents" not in companies_data:
         return []
     
-    # Create concurrent requests for all company tasks
-    async def get_company_tasks(company_doc):
-        company_id = company_doc["name"].split("/")[-1]
-        tasks_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}/Task"
-        
-        tasks_response = await client.get(
-            tasks_url,
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        
-        if tasks_response.status_code == 200:
-            tasks_data = tasks_response.json()
-            if "documents" in tasks_data:
-                return [parse_firestore_task(task_doc) for task_doc in tasks_data["documents"] if parse_firestore_task(task_doc)]
-        return []
+    # Limit concurrent requests to avoid overwhelming the server
+    semaphore = asyncio.Semaphore(10)
     
-    # Execute all requests concurrently
+    async def get_company_tasks(company_doc):
+        async with semaphore:
+            company_id = company_doc["name"].split("/")[-1]
+            tasks_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{company_id}/Task"
+            
+            try:
+                tasks_response = await client.get(
+                    tasks_url,
+                    headers={"Authorization": f"Bearer {token}"}
+                )
+                
+                if tasks_response.status_code == 200:
+                    tasks_data = tasks_response.json()
+                    if "documents" in tasks_data:
+                        return [parse_firestore_task(task_doc) for task_doc in tasks_data["documents"] if parse_firestore_task(task_doc)]
+            except:
+                pass
+            return []
+    
+    # Execute requests with limited concurrency
     task_lists = await asyncio.gather(*[get_company_tasks(company_doc) for company_doc in companies_data["documents"]], return_exceptions=True)
     
     # Flatten the results
@@ -215,7 +238,7 @@ def get_bool_value(fields: dict, field_name: str) -> bool:
 async def create_company(user_id: str, company: Company) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
     doc_id = company.id
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{doc_id}"
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{doc_id}"
     
     token = await get_access_token()
     
@@ -249,7 +272,7 @@ async def create_company(user_id: str, company: Company) -> bool:
 
 async def get_company_by_id(user_id: str, company_id: str) -> Optional[Company]:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}"
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{company_id}"
     
     token = await get_access_token()
     client = await get_http_client()
@@ -267,7 +290,7 @@ async def get_company_by_id(user_id: str, company_id: str) -> Optional[Company]:
 
 async def update_company(user_id: str, company_id: str, company: Company) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}"
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{company_id}"
     
     token = await get_access_token()
     
@@ -301,7 +324,7 @@ async def update_company(user_id: str, company_id: str, company: Company) -> boo
 
 async def delete_company(user_id: str, company_id: str) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}"
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{company_id}"
     
     token = await get_access_token()
     client = await get_http_client()
@@ -317,7 +340,7 @@ async def create_task(user_id: str, task: Task) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
     doc_id = task.id
     company_id = task.companyId
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}/Task/{doc_id}"
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{company_id}/Task/{doc_id}"
     
     token = await get_access_token()
     
@@ -346,7 +369,7 @@ async def get_task_by_id(user_id: str, task_id: str) -> Optional[Task]:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
     
     # Need to search through all companies to find the task
-    companies_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies"
+    companies_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies"
     
     token = await get_access_token()
     client = await get_http_client()
@@ -365,7 +388,7 @@ async def get_task_by_id(user_id: str, task_id: str) -> Optional[Task]:
         for company_doc in companies_data["documents"]:
             company_id = company_doc["name"].split("/")[-1]
             
-            task_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}/Task/{task_id}"
+            task_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{company_id}/Task/{task_id}"
             
             task_response = await client.get(
                 task_url,
@@ -381,7 +404,7 @@ async def get_task_by_id(user_id: str, task_id: str) -> Optional[Task]:
 async def update_task(user_id: str, task_id: str, task: Task) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
     company_id = task.companyId
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}/Task/{task_id}"
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{company_id}/Task/{task_id}"
     
     token = await get_access_token()
     
@@ -408,7 +431,7 @@ async def update_task(user_id: str, task_id: str, task: Task) -> bool:
 
 async def delete_task(user_id: str, task_id: str, company_id: str) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-dev/{user_id}/companies/{company_id}/Task/{task_id}"
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/cm-users-production/{user_id}/companies/{company_id}/Task/{task_id}"
     
     token = await get_access_token()
     client = await get_http_client()
@@ -419,3 +442,78 @@ async def delete_task(user_id: str, task_id: str, company_id: str) -> bool:
     )
     
     return response.status_code < 400
+async def create_user(email: str, password: str) -> dict:
+    api_key = os.getenv("FIREBASE_API_KEY")
+    url = f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={api_key}"
+    
+    client = await get_http_client()
+    response = await client.post(
+        url,
+        json={
+            "email": email,
+            "password": password,
+            "returnSecureToken": True
+        }
+    )
+    
+    if response.status_code == 200:
+        data = response.json()
+        user_id = data["localId"]
+        
+        # Store user in Firestore collection
+        await store_user_in_firestore(user_id, email)
+        
+        return {
+            "userId": user_id,
+            "bearerToken": data["idToken"]
+        }
+    else:
+        return None
+
+async def store_user_in_firestore(user_id: str, email: str) -> bool:
+    project_id = os.getenv("FIREBASE_PROJECT_ID")
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/company-management-users/{user_id}"
+    
+    token = await get_access_token()
+    
+    firestore_doc = {
+        "fields": {
+            "email": {"stringValue": email},
+            "created_at": {"timestampValue": datetime.utcnow().isoformat() + "Z"}
+        }
+    }
+    
+    client = await get_http_client()
+    response = await client.patch(
+        url,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        },
+        json=firestore_doc
+    )
+    
+    return response.status_code < 400
+
+async def login_user(email: str, password: str) -> dict:
+    api_key = os.getenv("FIREBASE_API_KEY")
+    url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
+    
+    client = await get_http_client()
+    response = await client.post(
+        url,
+        json={
+            "email": email,
+            "password": password,
+            "returnSecureToken": True
+        }
+    )
+    
+    if response.status_code == 200:
+        data = response.json()
+        return {
+            "userId": data["localId"],
+            "bearerToken": data["idToken"]
+        }
+    else:
+        return None

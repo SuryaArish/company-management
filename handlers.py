@@ -240,3 +240,22 @@ async def assign_template(user_id: str, template_id: str, assign_data: AssignDat
         "dueDate": assign_data.dueDate,
         "assigned_at": datetime.utcnow().isoformat()
     }
+async def create_user_handler(user_data):
+    try:
+        result = await firebase.create_user(user_data.email, user_data.password)
+        if result:
+            return result
+        else:
+            raise HTTPException(status_code=400, detail="Failed to create user")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+async def login_user_handler(user_data):
+    try:
+        result = await firebase.login_user(user_data.email, user_data.password)
+        if result:
+            return result
+        else:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")

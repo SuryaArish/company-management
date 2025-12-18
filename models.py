@@ -52,3 +52,7 @@ class AssignData(BaseModel):
 
     class Config:
         populate_by_name = True
+
+class User(BaseModel):
+    email: str
+    password: str
