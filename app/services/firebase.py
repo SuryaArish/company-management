@@ -23,7 +23,7 @@ async def get_http_client():
         _http_client = httpx.AsyncClient(
             timeout=httpx.Timeout(5.0, connect=2.0),
             limits=httpx.Limits(max_keepalive_connections=100, max_connections=500),
-            http2=True
+            http2=False
         )
     return _http_client
 
@@ -502,7 +502,7 @@ async def create_user(email: str, password: str) -> dict:
 
 async def store_user_in_firestore(user_id: str, email: str) -> bool:
     project_id = os.getenv("FIREBASE_PROJECT_ID")
-    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/company-management-users/{user_id}"
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/users/{user_id}"
     
     token = await get_access_token()
     
