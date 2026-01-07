@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 from app.models import Company, Task, TaskTemplate, AssignData, User
 from app.services import firebase
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 import re
 
@@ -154,6 +154,103 @@ async def update_company(user_id: str, company_id: str, company_data: Company):
             raise HTTPException(status_code=409, detail="Concurrent modification detected")
         else:
             raise HTTPException(status_code=500, detail="Internal server error")
+
+async def send_email_reminders():
+    try:
+        users = await firebase.get_users_for_reminder()
+        
+        # Use India timezone (UTC+5:30)
+        from datetime import timezone, timedelta
+        india_tz = timezone(timedelta(hours=5, minutes=30))
+        current_datetime = datetime.now(india_tz)
+        current_date = current_datetime.date()
+        current_time = current_datetime.strftime("%H:%M")
+        
+        sent_count = 0
+        processed_count = 0
+        
+        print(f"🔍 Processing {len(users)} users for email reminders...")
+        print(f"🕰️ Current India time: {current_datetime}")
+        
+        for user in users:
+            processed_count += 1
+            
+            try:
+                # Validate required fields
+                if not user.get("email") or not user.get("created_at") or user.get("days_before", 0) <= 0:
+                    print(f"⚠️ Skipping user {user.get('user_id', 'unknown')}: Missing required data")
+                    continue
+                
+                # Parse Firebase timestamp
+                created_at_str = user["created_at"]
+                if created_at_str.endswith('Z'):
+                    created_date = datetime.fromisoformat(created_at_str.replace('Z', '+00:00')).date()
+                else:
+                    created_date = datetime.fromisoformat(created_at_str).date()
+                
+                # Calculate reminder date
+                days_before = user["days_before"]
+                reminder_date = created_date + timedelta(days=days_before)
+                
+                # Get time settings
+                time_of_day = user.get("time_of_day", "12:00")
+                
+                print(f"👤 User: {user['email']}")
+                print(f"📅 Created: {created_date}")
+                print(f"🔢 Days before: {days_before}")
+                print(f"📅 Reminder date: {reminder_date}")
+                print(f"🕰️ Reminder time: {time_of_day}")
+                print(f"📅 Current date: {current_date}")
+                print(f"🕰️ Current time: {current_time}")
+                
+                # Check if today is the reminder date
+                if current_date == reminder_date:
+                    # Check if current time matches or is past the reminder time
+                    reminder_hour, reminder_minute = map(int, time_of_day.split(":"))
+                    current_hour, current_minute = map(int, current_time.split(":"))
+                    
+                    current_minutes_total = current_hour * 60 + current_minute
+                    reminder_minutes_total = reminder_hour * 60 + reminder_minute
+                    
+                    if current_minutes_total >= reminder_minutes_total:
+                        print(f"✅ Time condition met. Sending reminder email...")
+                        
+                        success = await firebase.send_reminder_email(
+                            user["email"], 
+                            user.get("cc_emails", []), 
+                            user["user_id"]
+                        )
+                        
+                        if success:
+                            sent_count += 1
+                            print(f"✅ Email sent successfully to {user['email']}")
+                        else:
+                            print(f"❌ Failed to send email to {user['email']}")
+                    else:
+                        print(f"⏰ Reminder time not yet reached. Current: {current_time}, Reminder: {time_of_day}")
+                else:
+                    print(f"📅 Not reminder date yet. Current: {current_date}, Reminder: {reminder_date}")
+                
+                print("---")
+                
+            except Exception as user_error:
+                print(f"❌ Error processing user {user.get('user_id', 'unknown')}: {user_error}")
+                continue
+        
+        result_message = f"Email reminders processed successfully. Processed {processed_count} users, sent {sent_count} emails."
+        print(f"✅ {result_message}")
+        
+        return {
+            "message": result_message,
+            "processed_users": processed_count,
+            "emails_sent": sent_count,
+            "timestamp": current_datetime.isoformat()
+        }
+        
+    except Exception as e:
+        error_message = f"Failed to process email reminders: {str(e)}"
+        print(f"❌ {error_message}")
+        raise HTTPException(status_code=500, detail=error_message)
 
 async def delete_company(user_id: str, company_id: str):
     # Check if company exists first

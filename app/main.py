@@ -7,11 +7,13 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from dotenv import load_dotenv
 from app.models import Company, Task, TaskTemplate, AssignData, User
 from app.api import handlers
+# from app.services.scheduler import start_email_scheduler, stop_email_scheduler
 import firebase_admin
 from firebase_admin import auth, credentials
 from typing import Optional
 import traceback
 import time
+import atexit
 
 load_dotenv("config/.env")
 
@@ -41,6 +43,22 @@ except ValueError:
     firebase_admin.initialize_app(cred)
 
 app = FastAPI(title="Company Management API", version="1.0.0")
+
+# Start email reminder scheduler on startup
+@app.on_event("startup")
+async def startup_event():
+    print("🚀 Starting Company Management API...")
+    # start_email_scheduler()
+    print("✅ API started (scheduler disabled)")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    print("🛑 Shutting down Company Management API...")
+    # stop_email_scheduler()
+    print("✅ API stopped")
+
+# Register cleanup on exit
+# atexit.register(stop_email_scheduler)
 
 # Token cache for performance
 _token_cache = {}
@@ -202,6 +220,17 @@ async def create_user(user_data: User):
 @app.post("/login_user")
 async def login_user(user_data: User):
     return await handlers.login_user_handler(user_data)
+
+# Email Reminder Routes
+@app.post("/send_email_reminders")
+async def send_email_reminders():
+    """Manual trigger for email reminders"""
+    return await handlers.send_email_reminders()
+
+@app.post("/send_email_reminders_manual")
+async def send_email_reminders_manual():
+    """Alternative manual trigger endpoint"""
+    return await handlers.send_email_reminders()
 
 # CORS middleware
 app.add_middleware(

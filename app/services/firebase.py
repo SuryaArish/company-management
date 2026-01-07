@@ -521,8 +521,7 @@ async def store_user_in_firestore(user_id: str, email: str) -> bool:
             "Content-Type": "application/json"
         },
         json=firestore_doc
-    )
-    
+    ) 
     return response.status_code < 400
 
 async def login_user(email: str, password: str) -> dict:
@@ -547,3 +546,175 @@ async def login_user(email: str, password: str) -> dict:
         }
     else:
         return None
+
+async def get_users_for_reminder() -> list:
+    project_id = os.getenv("FIREBASE_PROJECT_ID")
+    url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/users"
+    
+    token = await get_access_token()
+    client = await get_http_client()
+    
+    response = await client.get(
+        url,
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    if response.status_code != 200:
+        return []
+    
+    data = response.json()
+    users = []
+    
+    if "documents" in data:
+        for doc in data["documents"]:
+            user_id = doc["name"].split("/")[-1]
+            fields = doc["fields"]
+            
+            email = fields.get("email", {}).get("stringValue", "")
+            created_at = fields.get("createdAt", {}).get("timestampValue", "") or fields.get("created_at", {}).get("timestampValue", "")
+            
+            reminder_settings = fields.get("reminderSettings", {}).get("mapValue", {}).get("fields", {})
+            days_before = reminder_settings.get("daysBefore", {}).get("integerValue", 0)
+            enabled = reminder_settings.get("enabled", {}).get("booleanValue", False)
+            time_of_day = reminder_settings.get("timeOfDay", {}).get("stringValue", "12:00")
+            
+            cc_emails_array = fields.get("ccEmails", {}).get("arrayValue", {}).get("values", [])
+            cc_email_list = [item.get("stringValue", "") for item in cc_emails_array if item.get("stringValue")]
+            
+            # Only process if reminder is enabled and required fields exist
+            if enabled and email and created_at:
+                users.append({
+                    "user_id": user_id,
+                    "email": email,
+                    "created_at": created_at,
+                    "days_before": int(days_before) if days_before else 0,
+                    "time_of_day": time_of_day,
+                    "cc_emails": cc_email_list
+                })
+    
+    return users
+
+async def send_reminder_email(to_email: str, cc_emails: list, user_id: str) -> bool:
+    try:
+        # Get user details and tasks from Firebase
+        user_name = await get_user_name(user_id)
+        user_tasks = await get_user_tasks_with_companies(user_id)
+        
+        # Build task list
+        task_details = ""
+        if user_tasks:
+            for task in user_tasks:
+                task_details += f"• {task['company_name']}: {task['task_title']} (Due: {task['due_date']})\n"
+        else:
+            task_details = "• No pending tasks found\n"
+        
+        # Professional email content
+        subject = "Task Reminder - Company Management System"
+        body = f"""Dear {user_name},
+
+We hope this message finds you well. Please find below your pending tasks that require attention:
+
+{task_details}
+We kindly request you to review and complete these tasks at your earliest convenience.
+
+Thank you for your continued dedication.
+
+Best regards,
+Company Management Team
+---
+This is an automated reminder email.
+User Reference: {user_id}
+"""
+        
+        # Try Gmail API first
+        from app.services.gmail_api import gmail_service
+        
+        # Check if Gmail API is configured
+        if gmail_service.client_id and gmail_service.client_secret and gmail_service.refresh_token:
+            success = await gmail_service.send_email(to_email, cc_emails, subject, body)
+            if success:
+                return True
+        
+        # Fallback to console logging
+        print(f"📧 REMINDER EMAIL SENT (Console):")
+        print(f"To: {to_email}")
+        if cc_emails:
+            print(f"CC: {', '.join(cc_emails)}")
+        print(f"Subject: {subject}")
+        print(f"Body: {body}")
+        print("---")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Failed to send reminder email: {e}")
+        return False
+
+async def get_user_name(user_id: str) -> str:
+    try:
+        project_id = os.getenv("FIREBASE_PROJECT_ID")
+        url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/users/{user_id}"
+        
+        token = await get_access_token()
+        client = await get_http_client()
+        
+        response = await client.get(url, headers={"Authorization": f"Bearer {token}"})
+        
+        if response.status_code == 200:
+            doc = response.json()
+            fields = doc.get("fields", {})
+            name = fields.get("name", {}).get("stringValue", "")
+            if name:
+                return name
+            # Fallback to email if no name
+            email = fields.get("email", {}).get("stringValue", "User")
+            return email.split("@")[0].title()
+        return "User"
+    except:
+        return "User"
+
+async def get_user_tasks_with_companies(user_id: str) -> list:
+    try:
+        project_id = os.getenv("FIREBASE_PROJECT_ID")
+        companies_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/users/{user_id}/companies"
+        
+        token = await get_access_token()
+        client = await get_http_client()
+        
+        companies_response = await client.get(companies_url, headers={"Authorization": f"Bearer {token}"})
+        
+        if companies_response.status_code != 200:
+            return []
+        
+        companies_data = companies_response.json()
+        tasks_with_companies = []
+        
+        if "documents" in companies_data:
+            for company_doc in companies_data["documents"]:
+                company_id = company_doc["name"].split("/")[-1]
+                company_fields = company_doc.get("fields", {})
+                company_name = company_fields.get("name", {}).get("stringValue", "Unknown Company")
+                
+                # Get tasks for this company
+                tasks_url = f"https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/users/{user_id}/companies/{company_id}/Task"
+                
+                tasks_response = await client.get(tasks_url, headers={"Authorization": f"Bearer {token}"})
+                
+                if tasks_response.status_code == 200:
+                    tasks_data = tasks_response.json()
+                    if "documents" in tasks_data:
+                        for task_doc in tasks_data["documents"]:
+                            task_fields = task_doc.get("fields", {})
+                            task_title = task_fields.get("title", {}).get("stringValue", "Untitled Task")
+                            completed = task_fields.get("completed", {}).get("booleanValue", False)
+                            
+                            # Only include incomplete tasks
+                            if not completed:
+                                tasks_with_companies.append({
+                                    "company_name": company_name,
+                                    "task_title": task_title,
+                                    "due_date": "Not specified"
+                                })
+        
+        return tasks_with_companies[:5]  # Limit to 5 tasks
+    except:
+        return []
